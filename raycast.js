@@ -125,15 +125,54 @@ function updatePlayer(dt){
 
 // ================= BOT AI ======================
 function updateBots(dt){
-    bots.forEach(bot=>{
-        const dir=player.pos.sub(bot.pos).normalize();
-        let step=dir.mult(bot.speed*dt);
-        let newPosX=bot.pos.add(new Vector2d(step.x,0));
-        let gx=Math.floor(newPosX.x), gy=Math.floor(newPosX.y);
-        if(gridMap[gy][gx]===0) bot.pos.x=newPosX.x;
-        let newPosY=bot.pos.add(new Vector2d(0,step.y));
-        gx=Math.floor(newPosY.x); gy=Math.floor(newPosY.y);
-        if(gridMap[gy][gx]===0) bot.pos.y=newPosY.y;
+    bots.forEach(bot => {
+        const distX = Math.abs(player.pos.x - bot.pos.x);
+        const distY = Math.abs(player.pos.y - bot.pos.y);
+
+        // --- Inside 3x3? Move directly toward player ---
+        if(distX <= 1.5 && distY <= 1.5){
+            let dir = player.pos.sub(bot.pos).normalize();
+            bot.pos = bot.pos.add(dir.mult(bot.speed * dt));
+            if(ytPlayer) adjustYTVolume(bot.pos);
+            return;
+        }
+
+        // --- Otherwise, move along grid toward player ---
+        const cellX = Math.floor(bot.pos.x);
+        const cellY = Math.floor(bot.pos.y);
+
+        // Pick the neighbor cell closest to the player
+        const neighbors = [];
+        if(gridMap[cellY-1] && gridMap[cellY-1][cellX] === 0) neighbors.push({x: cellX + 0.5, y: cellY - 1 + 0.5});
+        if(gridMap[cellY+1] && gridMap[cellY+1][cellX] === 0) neighbors.push({x: cellX + 0.5, y: cellY + 1 + 0.5});
+        if(gridMap[cellY][cellX-1] === 0) neighbors.push({x: cellX - 1 + 0.5, y: cellY + 0.5});
+        if(gridMap[cellY][cellX+1] === 0) neighbors.push({x: cellX + 1 + 0.5, y: cellY + 0.5});
+
+        if(neighbors.length > 0){
+            // find the neighbor closest to the player
+            neighbors.sort((a,b) => {
+                const da = Math.hypot(player.pos.x - a.x, player.pos.y - a.y);
+                const db = Math.hypot(player.pos.x - b.x, player.pos.y - b.y);
+                return da - db;
+            });
+            bot.targetCell = neighbors[0];
+        } else {
+            // no neighbors? stay in current cell center
+            bot.targetCell = {x: cellX + 0.5, y: cellY + 0.5};
+        }
+
+        // Move smoothly toward target cell
+        let moveDir = new Vector2d(bot.targetCell.x - bot.pos.x, bot.targetCell.y - bot.pos.y);
+        let step = moveDir.normalize().mult(bot.speed * dt);
+
+        let newPosX = bot.pos.add(new Vector2d(step.x, 0));
+        let newPosY = bot.pos.add(new Vector2d(0, step.y));
+
+        if(gridMap[Math.floor(newPosY.y)][Math.floor(newPosX.x)] === 0){
+            bot.pos.x = newPosX.x;
+            bot.pos.y = newPosY.y;
+        }
+
         if(ytPlayer) adjustYTVolume(bot.pos);
     });
 }
